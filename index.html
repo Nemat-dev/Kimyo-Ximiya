@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kimyo Laboratoriyasi 3D - Ilg'or Qo'l & Erkin Sintez</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #050b18;
+      color: #f1f5f9;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .glass-panel {
+      background: rgba(10, 18, 35, 0.88);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 18px 45px -10px rgba(0, 0, 0, 0.75);
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-card:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(56, 189, 248, 0.55);
+      transform: translateY(-2px);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.35);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.45);
+      border-radius: 9999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(56, 189, 248, 0.8);
+    }
+    @keyframes violentExplosionShake {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      12% { transform: translate(-22px, 16px) rotate(-3.5deg); }
+      24% { transform: translate(20px, -18px) rotate(4deg); }
+      38% { transform: translate(-18px, -14px) rotate(-2.5deg); }
+      52% { transform: translate(16px, 14px) rotate(2deg); }
+      68% { transform: translate(-10px, 8px) rotate(-1.5deg); }
+      84% { transform: translate(6px, -4px) rotate(0.8deg); }
+      100% { transform: translate(0, 0) rotate(0deg); }
+    }
+    .heavy-blast-shake {
+      animation: violentExplosionShake 0.9s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    }
+    #canvas3d {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      outline: none;
+    }
+    .floating-hud {
+      pointer-events: none;
+      position: absolute;
+      transform: translate(-50%, -100%);
+      transition: opacity 0.25s ease-out;
+    }
+    .panel-transition {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+<body class="relative w-screen h-screen">
+
+  <div id="canvas-container" class="absolute inset-0 z-0">
+    <canvas id="canvas3d"></canvas>
+  </div>
+
+  <!-- Vizual flesh & quyuq tutun qatlami -->
+  <div id="fx-flash" class="absolute inset-0 z-40 bg-red-600/60 pointer-events-none opacity-0 transition-opacity duration-200"></div>
+  <div id="fx-smoke" class="absolute inset-0 z-40 bg-black/85 mix-blend-multiply pointer-events-none opacity-0 transition-opacity duration-700"></div>
+
+  <!-- 3D Faol Idish ustidagi suzuvchi Hologramma yorlig'i -->
+  <div id="vessel-hud" class="floating-hud z-20 flex flex-col items-center">
+    <div class="glass-panel px-3.5 py-2 rounded-2xl border border-cyan-400/40 text-center shadow-2xl shadow-cyan-500/25 max-w-xs">
+      <div id="hud-title" class="text-[11px] font-bold text-cyan-300 flex items-center justify-center gap-1.5 font-mono">
+        <i class="fa-solid fa-flask text-cyan-400"></i> <span id="hud-name">Asosiy Kolba</span>
+      </div>
+      <div id="hud-contents" class="text-[10px] text-slate-300 font-mono mt-0.5 font-semibold">Tarkibi: Bo'sh</div>
+      <div id="hud-reaction" class="hidden mt-1 px-2 py-0.5 rounded-lg bg-emerald-500/25 border border-emerald-400/60 text-[10px] font-bold text-emerald-300 animate-pulse">
+        Yangi modda: Osh tuzi (NaCl) kristallari
+      </div>
+    </div>
+    <div class="w-0.5 h-5 bg-cyan-400/60"></div>
+    <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400"></div>
+  </div>
+
+  <!-- Yuqori boshqaruv menyusi -->
+  <header class="absolute top-2.5 left-2.5 right-2.5 z-30 glass-panel px-3.5 sm:px-5 py-2 rounded-xl flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 via-indigo-600 to-fuchsia-500 flex items-center justify-center shadow-md shadow-indigo-500/30">
+        <i class="fa-solid fa-hand-fist text-white text-sm"></i>
+      </div>
+      <div>
+        <h1 class="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+          Katta Laboratoriya 3D
+          <span class="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">First-Person Qo'l & Erkin Tajriba</span>
+        </h1>
+        <p class="text-[10px] text-slate-400 hidden sm:block">Erkin aralashtirish rejimi faol — xatoga yo'l qo'yilsa, bevosita portlaydi!</p>
+      </div>
+    </div>
+
+    <!-- Idish tanlash tugmalari -->
+    <div class="flex items-center bg-slate-900/90 p-1 rounded-lg border border-white/10">
+      <button id="btn-vessel-flask" onclick="switchActiveVessel('flask')" class="px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition bg-cyan-500 text-white shadow">
+        <i class="fa-solid fa-flask"></i> <span class="hidden md:inline">Kolba</span>
+      </button>
+      <button id="btn-vessel-beaker" onclick="switchActiveVessel('beaker')" class="px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition text-slate-400 hover:text-white">
+        <i class="fa-solid fa-glass-water"></i> <span class="hidden md:inline">Stakan</span>
+      </button>
+      <button id="btn-vessel-tube" onclick="switchActiveVessel('tube')" class="px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition text-slate-400 hover:text-white">
+        <i class="fa-solid fa-vial"></i> <span class="hidden md:inline">Probirka</span>
+      </button>
+    </div>
+
+    <!-- Tezkor asboblar -->
+    <div class="flex items-center gap-1.5">
+      <button onclick="toggleRecipesBook()" class="px-2.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 text-[11px] font-semibold flex items-center gap-1.5 transition shadow">
+        <i class="fa-solid fa-book-bookmark"></i> <span class="hidden lg:inline">Retseptlar</span>
+      </button>
+      <button id="btn-burner" onclick="toggleBunsenBurner()" class="px-2.5 py-1.5 rounded-lg glass-card text-amber-400 hover:bg-amber-500/20 text-[11px] font-semibold flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-fire"></i> <span id="burner-label" class="hidden md:inline">Gorelka</span>
+      </button>
+      <button onclick="washActiveVessel()" title="Idishni tozalash" class="p-2 rounded-lg glass-card text-rose-400 hover:bg-rose-500/20 text-xs transition">
+        <i class="fa-solid fa-broom"></i>
+      </button>
+      <button id="btn-sound" onclick="toggleSound()" class="p-2 rounded-lg glass-card text-cyan-400 hover:bg-cyan-500/20 text-xs transition">
+        <i class="fa-solid fa-volume-high"></i>
+      </button>
+      <button onclick="resetCameraAngle()" title="Kamerani qaytarish" class="p-2 rounded-lg glass-card text-slate-300 hover:bg-slate-700 text-xs transition">
+        <i class="fa-solid fa-arrows-rotate"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Chap panel: Telemetriya & Jurnal (Ixcham va Yig'iladigan / Collapsible) -->
+  <aside id="left-sidebar-wrapper" class="absolute left-2.5 top-14 bottom-2.5 z-20 flex flex-col pointer-events-none">
+    <!-- Buklangan miniatyura badge (Kengaytirish uchun) -->
+    <button id="btn-expand-left" onclick="toggleLeftPanel(true)" class="hidden pointer-events-auto glass-panel p-2.5 rounded-xl border border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/20 shadow-xl flex items-center gap-2 text-xs font-bold transition">
+      <i class="fa-solid fa-chart-simple"></i>
+      <span class="text-[11px] font-mono">Telemetriya</span>
+      <i class="fa-solid fa-chevron-right text-[10px]"></i>
+    </button>
+
+    <!-- Asosiy yoyilgan panel -->
+    <div id="left-sidebar-content" class="w-64 sm:w-72 flex-1 flex flex-col gap-2 panel-transition">
+      <!-- Telemetriya kartasi -->
+      <div class="glass-panel rounded-xl p-3 flex flex-col pointer-events-auto">
+        <div class="flex items-center justify-between pb-1.5 border-b border-white/10 mb-2">
+          <div class="flex items-center gap-1.5">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+            </span>
+            <span id="active-vessel-title" class="text-[11px] font-bold uppercase tracking-wider text-slate-200">Asosiy Kolba</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span id="active-vessel-badge" class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-semibold">Bo'sh</span>
+            <button onclick="toggleLeftPanel(false)" title="Panelni yopish (kichraytirish)" class="w-5 h-5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+              <i class="fa-solid fa-minus"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-1.5 mb-2">
+          <div class="glass-card rounded-lg p-1.5 text-center">
+            <span class="text-[9px] text-slate-400 block font-medium">HAJM</span>
+            <span id="ui-volume" class="text-[11px] sm:text-xs font-bold font-mono text-cyan-300">0 / 250 ml</span>
+          </div>
+          <div class="glass-card rounded-lg p-1.5 text-center">
+            <span class="text-[9px] text-slate-400 block font-medium">HARORAT</span>
+            <span id="ui-temperature" class="text-[11px] sm:text-xs font-bold font-mono text-amber-300">22°C</span>
+          </div>
+          <div class="glass-card rounded-lg p-1.5 text-center">
+            <span class="text-[9px] text-slate-400 block font-medium">pH</span>
+            <span id="ui-ph" class="text-[11px] sm:text-xs font-bold font-mono text-emerald-400">7.0</span>
+          </div>
+        </div>
+
+        <div class="text-[11px] font-semibold text-slate-300 mb-1 flex justify-between items-center">
+          <span>Tarkib:</span>
+          <span id="comp-count-label" class="text-[9px] text-cyan-400 font-mono">0 ta</span>
+        </div>
+        <div id="vessel-contents-list" class="max-h-20 overflow-y-auto custom-scroll flex flex-col gap-1 pr-1">
+          <div class="text-[10px] text-slate-500 italic py-1.5 text-center">Idish bo'sh. Tokchadagi butilkani tanlang!</div>
+        </div>
+      </div>
+
+      <!-- Amaliyot Jurnali -->
+      <div class="glass-panel rounded-xl p-3 flex-1 flex flex-col pointer-events-auto min-h-0">
+        <div class="flex items-center justify-between pb-1.5 border-b border-white/10 mb-1.5">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-clipboard-list text-cyan-400"></i> Jurnal
+          </span>
+          <button onclick="clearJournalLog()" class="text-[9px] text-slate-400 hover:text-white transition">Tozalash</button>
+        </div>
+        <div id="journal-scroll" class="flex-1 overflow-y-auto custom-scroll flex flex-col gap-1 font-mono text-[10px] pr-1">
+          <div class="p-1.5 rounded-lg bg-white/5 border border-white/5 text-slate-300">
+            <span class="text-cyan-400 font-bold">[TIZIM]</span> 3D Olim Qo'li tayyor. Ogohlantirishlarsiz erkin tajriba rejimi faol.
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- O'ng panel: Tokchalar va Reaktivlar (Ixcham va Yig'iladigan / Collapsible) -->
+  <aside id="right-sidebar-wrapper" class="absolute right-2.5 top-14 bottom-2.5 z-20 flex flex-col pointer-events-none items-end">
+    <!-- Buklangan miniatyura badge (Kengaytirish uchun) -->
+    <button id="btn-expand-right" onclick="toggleRightPanel(true)" class="hidden pointer-events-auto glass-panel p-2.5 rounded-xl border border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/20 shadow-xl flex items-center gap-2 text-xs font-bold transition">
+      <i class="fa-solid fa-chevron-left text-[10px]"></i>
+      <i class="fa-solid fa-flask-vial"></i>
+      <span class="text-[11px] font-mono">Mendeleyev Tokchalari</span>
+    </button>
+
+    <!-- Asosiy yoyilgan panel -->
+    <div id="right-sidebar-content" class="w-68 sm:w-72 flex-1 glass-panel rounded-xl p-3 flex flex-col pointer-events-auto panel-transition">
+      <div class="flex items-center justify-between pb-1.5 border-b border-white/10 mb-2">
+        <div class="flex items-center gap-1.5">
+          <i class="fa-solid fa-table-cells text-cyan-400 text-xs"></i>
+          <h2 class="text-xs font-bold text-white">Mendeleyev Tokchalari</h2>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-[9px] text-slate-400 font-mono hidden sm:inline">Butilkalar</span>
+          <button onclick="toggleRightPanel(false)" title="Panelni yopish (kichraytirish)" class="w-5 h-5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+            <i class="fa-solid fa-minus"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="mb-2">
+        <input type="text" id="reagent-search" placeholder="Qidiruv (Na, HCl, Cu, H2O, S)..." oninput="filterReagentCards(this.value)" class="w-full bg-slate-900/90 border border-white/10 rounded-lg px-2.5 py-1 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400">
+      </div>
+
+      <div class="flex items-center gap-1 mb-2 overflow-x-auto custom-scroll pb-1 text-[10px]">
+        <button onclick="filterShelfCategory('all', this)" class="shelf-pill px-2 py-0.5 rounded-md bg-cyan-500 text-white font-medium whitespace-nowrap">Barchasi</button>
+        <button onclick="filterShelfCategory('metall', this)" class="shelf-pill px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 whitespace-nowrap">Metallar</button>
+        <button onclick="filterShelfCategory('kislota', this)" class="shelf-pill px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 whitespace-nowrap">Kislotalar</button>
+        <button onclick="filterShelfCategory('ishqor', this)" class="shelf-pill px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 whitespace-nowrap">Ishqorlar</button>
+        <button onclick="filterShelfCategory('oddiy', this)" class="shelf-pill px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 whitespace-nowrap">Oddiy</button>
+      </div>
+
+      <div id="rack-cards-grid" class="flex-1 overflow-y-auto custom-scroll grid grid-cols-2 gap-1.5 pr-1 content-start"></div>
+
+      <div class="mt-2 pt-1.5 border-t border-white/10 text-[9px] text-slate-400 flex items-center justify-between">
+        <span>Nishon: <strong id="shelf-target-name" class="text-cyan-400">Kolba</strong></span>
+        <span class="text-cyan-400 font-medium"><i class="fa-solid fa-hand-pointer"></i> Tanlang</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Modal: Miqdor kiritish (OGOHLANTIRISHLARSIZ - to'liq erkinlik) -->
+  <div id="dispense-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-200">
+    <div id="dispense-card" class="glass-panel rounded-3xl max-w-sm w-full p-6 border border-cyan-500/40 transform scale-95 transition-all duration-200 shadow-2xl shadow-cyan-500/20">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div id="modal-bottle-badge" class="w-12 h-12 rounded-2xl flex flex-col items-center justify-center font-bold text-white shadow-lg bg-gradient-to-tr from-cyan-600 to-blue-600 font-mono">
+            <span id="modal-bottle-symbol" class="text-base leading-none">H₂O</span>
+          </div>
+          <div>
+            <h3 id="modal-bottle-name" class="text-sm font-bold text-white">Distillangan Suv</h3>
+            <p id="modal-bottle-category" class="text-xs text-cyan-400 font-mono">Erituvchi</p>
+          </div>
+        </div>
+        <button onclick="closeDispenseModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="mb-4">
+        <div class="flex justify-between items-center text-xs font-semibold text-slate-300 mb-2">
+          <span>Qo'shiladigan miqdor:</span>
+          <span id="dispense-amount-text" class="text-cyan-400 font-mono font-bold text-base">30 ml</span>
+        </div>
+        <input type="range" id="dispense-slider" min="5" max="100" step="5" value="30" oninput="updateDispenseSlider(this.value)" class="w-full accent-cyan-400 cursor-pointer h-2 bg-slate-800 rounded-lg">
+        <div class="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
+          <span>5 <span class="unit-span">ml</span></span>
+          <span>50 <span class="unit-span">ml</span></span>
+          <span>100 <span class="unit-span">ml</span></span>
+        </div>
+      </div>
+
+      <div class="flex gap-2 mb-5">
+        <button onclick="setAmountPreset(10)" class="flex-1 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-slate-300">10 <span class="unit-span">ml</span></button>
+        <button onclick="setAmountPreset(25)" class="flex-1 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-slate-300">25 <span class="unit-span">ml</span></button>
+        <button onclick="setAmountPreset(50)" class="flex-1 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-slate-300">50 <span class="unit-span">ml</span></button>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="closeDispenseModal()" class="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-semibold">
+          Bekor qilish
+        </button>
+        <button onclick="confirmAndAnimateHandPour()" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-indigo-600 to-blue-600 hover:brightness-110 text-white text-xs font-bold shadow-lg shadow-cyan-500/30 flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-hand-holding-droplet"></i> <span>Qo'l bilan quyish</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: RETSEPTLAR & XAVFSIZLIK QOIDALARI KITOBI -->
+  <div id="recipes-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-300">
+    <div class="glass-panel rounded-3xl max-w-2xl w-full p-6 border border-amber-500/40 shadow-2xl max-h-[88vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-book-bookmark text-amber-400 text-xl"></i>
+          <div>
+            <h3 class="text-base font-bold text-white">Retseptlar & Xavfsizlik Qo'llanmasi</h3>
+            <p class="text-xs text-slate-400">Elementlar sintezi va laboratoriya xavflari ro'yxati</p>
+          </div>
+        </div>
+        <button onclick="toggleRecipesBook()" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto custom-scroll space-y-3.5 pr-2 text-xs text-slate-300">
+        <!-- Qat'iy Xavfsizlik Ogohlantirishlari -->
+        <div class="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200">
+          <div class="font-bold text-rose-400 text-sm mb-1.5 flex items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-base"></i>
+            LABORATORIYA XAVFSIZLIGI VA OGOHLANTIRISHLAR (MUHIM):
+          </div>
+          <ul class="space-y-1 list-disc list-inside text-[11px] leading-relaxed">
+            <li><strong class="text-white">Qat'iyan taqiqlanadi:</strong> Natriy (Na) yoki Kaliyni (K) suvga (H₂O) solish! Kuchli ekzotermik reaksiyada vodorod alanga olib zudlik bilan laboratoriya portlaydi!</li>
+            <li><strong class="text-white">Kislotaga suv quymang:</strong> Sulfat (H₂SO₄) yoki Nitrat (HNO₃) kislotalariga suv qo'shish kuchli issiqlik ajratib qaynab ketadi va shishani sindiradi!</li>
+            <li><strong class="text-white">Gorelka harorati:</strong> Quruq kukunli moddalarni gorelka ustida 125°C dan yuqori qizdirmang, idish yorilib ketadi!</li>
+          </ul>
+        </div>
+
+        <!-- Sintez retseptlari -->
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/5">
+          <div class="font-bold text-cyan-300 text-sm mb-1 flex items-center gap-2">
+            <i class="fa-solid fa-cube text-cyan-400"></i> 1. Osh Tuzi (NaCl) Kristallari Sintezi:
+          </div>
+          <p class="font-mono text-slate-200 text-xs">2Na (Natriy) + Cl₂ (Xlor) → 2NaCl</p>
+          <p class="text-[11px] text-slate-400 mt-1">Yorqin nur bilan reaksiyaga kirishib, idish tubida oq rangli osh tuzi hosil bo'ladi.</p>
+        </div>
+
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/5">
+          <div class="font-bold text-cyan-300 text-sm mb-1 flex items-center gap-2">
+            <i class="fa-solid fa-fire-burner text-amber-400"></i> 2. Qora Temir Sulfidi (FeS) - Termik Sintez:
+          </div>
+          <p class="font-mono text-slate-200 text-xs">Fe (Temir) + S (Oltingugurt) + [Gorelka olovi] → FeS</p>
+          <p class="text-[11px] text-slate-400 mt-1">Gorelkani yoqib qizdirilganda, sariq va kulrang kukunlar qora temir sulfidiga aylanadi.</p>
+        </div>
+
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/5">
+          <div class="font-bold text-cyan-300 text-sm mb-1 flex items-center gap-2">
+            <i class="fa-solid fa-scale-balanced text-indigo-400"></i> 3. Kislota-Ishqor Neytrallanishi:
+          </div>
+          <p class="font-mono text-slate-200 text-xs">HCl + NaOH → NaCl + H₂O</p>
+          <p class="text-[11px] text-slate-400 mt-1">Fenolftalein indikatori bo'lganda malina rangidan toza tiniq eritmaga aylanadi va pH 7 bo'ladi.</p>
+        </div>
+
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/5">
+          <div class="font-bold text-cyan-300 text-sm mb-1 flex items-center gap-2">
+            <i class="fa-solid fa-cloud-arrow-up text-blue-400"></i> 4. Vodorod Gazi Ajralishi:
+          </div>
+          <p class="font-mono text-slate-200 text-xs">Zn (Rux) + 2HCl → ZnCl₂ + H₂↑</p>
+          <p class="text-[11px] text-slate-400 mt-1">Rux granulasi xlorid kislotaga tushishi bilan shiddatli gaz pufakchalari ajraladi.</p>
+        </div>
+
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/5">
+          <div class="font-bold text-cyan-300 text-sm mb-1 flex items-center gap-2">
+            <i class="fa-solid fa-gem text-emerald-400"></i> 5. Misning Oksidlanishi:
+          </div>
+          <p class="font-mono text-slate-200 text-xs">Cu + 4HNO₃ → Cu(NO₃)₂ + 2NO₂↑ + 2H₂O</p>
+          <p class="text-[11px] text-slate-400 mt-1">Zangori-moviy rangli eritma va jigarrang gaz hosil bo'ladi.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: XATO ARALASHTIRILGANDA DARHOL CHIQADIGAN PORTLASH VA MUDIR REAKSIYASI -->
+  <div id="explosion-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-300">
+    <div id="explosion-card" class="glass-panel rounded-3xl max-w-lg w-full p-6 border-2 border-red-500 text-center shadow-[0_0_90px_rgba(239,68,68,0.7)] transform scale-90 transition-all duration-300 relative overflow-hidden">
+      <div class="w-16 h-16 rounded-2xl bg-red-500/20 border border-red-500/50 text-red-500 flex items-center justify-center text-3xl mx-auto mb-3 animate-bounce">
+        <i class="fa-solid fa-burst"></i>
+      </div>
+      <h2 class="text-xl sm:text-2xl font-black text-rose-400 tracking-wide uppercase mb-2">
+        💥 PORTLASH RO'Y BERDI!
+      </h2>
+      <div class="bg-red-950/80 border border-red-500/40 rounded-2xl p-4 mb-4 text-left">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="text-2xl">😤🥼💥</span>
+          <p class="text-amber-300 font-bold text-xs uppercase tracking-wider">Laboratoriya Mudiri Tutab Ketdi:</p>
+        </div>
+        <p id="boss-quote-main" class="text-rose-100 text-base font-bold italic leading-relaxed mb-1.5">
+          "Sen kimsan? Uldirishinga ozgina qoldiku Axmoq!"
+        </p>
+        <p id="boss-quote-sub" class="text-xs text-rose-200 font-medium border-t border-red-500/30 pt-2">
+          "Kallang bormi o'zi?! Laboratoriyani kulini ko'kka sovurmoqchimisan?! Qaytadan tozalab yangila tez!"
+        </p>
+      </div>
+      <div class="p-3 rounded-xl bg-white/5 border border-white/5 text-[11px] text-slate-300 font-mono mb-4 text-left">
+        <span class="text-cyan-400 font-bold">Xato sababi:</span>
+        <span id="explosion-reason-text" class="text-slate-200 block mt-0.5">Xavfli moddalar qoidaga zid aralashtirildi.</span>
+      </div>
+      <button onclick="resetAndRenewLab()" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:brightness-110 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-red-600/50 transition active:scale-95 flex items-center justify-center gap-2">
+        <i class="fa-solid fa-sparkles"></i> Laboratoriyani yangilash va qayta tiklash
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // [MENDELEEV_BOTTLES & vessels remain identical]
+    const MENDELEEV_BOTTLES = [
+      { id: 'H2O', symbol: 'H₂O', name: 'Distillangan Suv', cat: 'oddiy', type: 'Neytral Erituvchi', color: 0x38bdf8, hex: '#38bdf8', ph: 7.0, state: 'liquid' },
+      { id: 'HCl', symbol: 'HCl', name: 'Xlorid Kislotasi', cat: 'kislota', type: 'Kuchli Kislota', color: 0xdbeafe, hex: '#dbeafe', ph: 1.0, state: 'liquid' },
+      { id: 'H2SO4', symbol: 'H₂SO₄', name: 'Sulfat Kislotasi', cat: 'kislota', type: 'O\'ta Kuchli Kislota', color: 0xf8fafc, hex: '#f8fafc', ph: 0.3, state: 'liquid' },
+      { id: 'HNO3', symbol: 'HNO₃', name: 'Nitrat Kislotasi', cat: 'kislota', type: 'Oksidlovchi Kislota', color: 0xfef08a, hex: '#fef08a', ph: 1.2, state: 'liquid' },
+      { id: 'NaOH', symbol: 'NaOH', name: 'Natriy Gidroksid', cat: 'ishqor', type: 'Kuchli Ishqor', color: 0xf1f5f9, hex: '#f1f5f9', ph: 13.8, state: 'liquid' },
+      { id: 'NH3', symbol: 'NH₃', name: 'Ammiak Eritmasi', cat: 'ishqor', type: 'Kuchsiz Ishqor', color: 0xc7d2fe, hex: '#c7d2fe', ph: 11.5, state: 'liquid' },
+      { id: 'CuSO4', symbol: 'CuSO₄', name: 'Mis Kuporosi', cat: 'oddiy', type: 'Tuz Eritmasi', color: 0x0284c7, hex: '#0284c7', ph: 5.2, state: 'liquid' },
+      { id: 'Phenol', symbol: 'Indik', name: 'Fenolftalein', cat: 'oddiy', type: 'pH Indikatori', color: 0xffffff, hex: '#ffffff', ph: 7.0, state: 'liquid' },
+      { id: 'Na', symbol: 'Na', name: 'Natriy Metall', cat: 'metall', type: 'Ishqoriy Metall', color: 0xe2e8f0, hex: '#e2e8f0', ph: 7.0, state: 'solid' },
+      { id: 'K', symbol: 'K', name: 'Kaliy Metall', cat: 'metall', type: 'Ishqoriy Metall', color: 0xc4b5fd, hex: '#c4b5fd', ph: 7.0, state: 'solid' },
+      { id: 'Fe', symbol: 'Fe', name: 'Temir Kukuni', cat: 'metall', type: 'Metall', color: 0x475569, hex: '#475569', ph: 7.0, state: 'solid' },
+      { id: 'Cu', symbol: 'Cu', name: 'Mis Qipiqlari', cat: 'metall', type: 'Metall', color: 0xb45309, hex: '#b45309', ph: 7.0, state: 'solid' },
+      { id: 'Zn', symbol: 'Zn', name: 'Rux Granulasi', cat: 'metall', type: 'Metall', color: 0x94a3b8, hex: '#94a3b8', ph: 7.0, state: 'solid' },
+      { id: 'S', symbol: 'S', name: 'Oltingugurt', cat: 'oddiy', type: 'Nometall', color: 0xfacc15, hex: '#facc15', ph: 7.0, state: 'solid' },
+      { id: 'Cl', symbol: 'Cl₂', name: 'Xlor Reaktiv', cat: 'oddiy', type: 'Galogen', color: 0xbef264, hex: '#bef264', ph: 3.2, state: 'liquid' },
+      { id: 'H2', symbol: 'H₂', name: 'Vodorod Gazi', cat: 'oddiy', type: 'Gaz', color: 0xe0f2fe, hex: '#e0f2fe', ph: 7.0, state: 'gas' },
+      { id: 'O2', symbol: 'O₂', name: 'Kislorod Gazi', cat: 'oddiy', type: 'Gaz', color: 0xbae6fd, hex: '#bae6fd', ph: 7.0, state: 'gas' },
+      { id: 'KMnO4', symbol: 'KMnO₄', name: 'Kaliy Permanganat', cat: 'oddiy', type: 'Oksidlovchi', color: 0x4c0519, hex: '#4c0519', ph: 7.0, state: 'solid' }
+    ];
+
+    const vessels = {
+      flask: {
+        id: 'flask',
+        name: 'Asosiy Kolba (Erlenmeyer)',
+        type: 'flask',
+        maxVol: 250,
+        volume: 0,
+        temp: 22.0,
+        ph: 7.0,
+        elements: new Map(),
+        formedProducts: [],
+        color: new THREE.Color(0x38bdf8),
+        group: null,
+        liquidMesh: null,
+        liquidMat: null,
+        effervescent: false,
+        pos: new THREE.Vector3(0, 0.9, 0),
+        has: function(id) { return this.elements.has(id) && this.elements.get(id) > 0; }
+      },
+      beaker: {
+        id: 'beaker',
+        name: 'Kimyoviy Stakan (Beaker)',
+        type: 'beaker',
+        maxVol: 200,
+        volume: 0,
+        temp: 22.0,
+        ph: 7.0,
+        elements: new Map(),
+        formedProducts: [],
+        color: new THREE.Color(0x10b981),
+        group: null,
+        liquidMesh: null,
+        liquidMat: null,
+        effervescent: false,
+        pos: new THREE.Vector3(1.8, 0, 0.2),
+        has: function(id) { return this.elements.has(id) && this.elements.get(id) > 0; }
+      },
+      tube: {
+        id: 'tube',
+        name: 'Sinov Probirkasi',
+        type: 'tube',
+        maxVol: 60,
+        volume: 0,
+        temp: 22.0,
+        ph: 7.0,
+        elements: new Map(),
+        formedProducts: [],
+        color: new THREE.Color(0xa855f7),
+        group: null,
+        liquidMesh: null,
+        liquidMat: null,
+        effervescent: false,
+        pos: new THREE.Vector3(-1.8, 0.7, 0.2),
+        has: function(id) { return this.elements.has(id) && this.elements.get(id) > 0; }
+      }
+    };
+
+    let activeVesselKey = 'flask';
+    let isBurnerOn = false;
+    let isSoundMuted = false;
+    let activeDispenseItem = null;
+    let isHandAnimating = false;
+    let audioContext = null;
+
+    // Yon panellarni yig'ish (collapse) va kengaytirish (expand) logikasi
+    function toggleLeftPanel(expand) {
+      const content = document.getElementById('left-sidebar-content');
+      const expandBtn = document.getElementById('btn-expand-left');
+      if (expand) {
+        content.classList.remove('hidden');
+        expandBtn.classList.add('hidden');
+      } else {
+        content.classList.add('hidden');
+        expandBtn.classList.remove('hidden');
+      }
+    }
+
+    function toggleRightPanel(expand) {
+      const content = document.getElementById('right-sidebar-content');
+      const expandBtn = document.getElementById('btn-expand-right');
+      if (expand) {
+        content.classList.remove('hidden');
+        expandBtn.classList.add('hidden');
+      } else {
+        content.classList.add('hidden');
+        expandBtn.classList.remove('hidden');
+      }
+    }
+
+    // Web Audio tovush sintezi
+    function playSfx(type) {
+      if (isSoundMuted) return;
+      try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+
+        const t = audioContext.currentTime;
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        if (type === 'pour') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(460, t);
+          osc.frequency.exponentialRampToValueAtTime(130, t + 0.38);
+          gain.gain.setValueAtTime(0.25, t);
+          gain.gain.linearRampToValueAtTime(0.01, t + 0.38);
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.start(t);
+          osc.stop(t + 0.38);
+        } else if (type === 'bubble') {
+          osc.type = 'triangle';
+          const f = 620 + Math.random() * 320;
+          osc.frequency.setValueAtTime(f, t);
+          osc.frequency.exponentialRampToValueAtTime(f + 220, t + 0.09);
+          gain.gain.setValueAtTime(0.12, t);
+          gain.gain.linearRampToValueAtTime(0.01, t + 0.09);
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.start(t);
+          osc.stop(t + 0.09);
+        } else if (type === 'react') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(310, t);
+          osc.frequency.exponentialRampToValueAtTime(740, t + 0.45);
+          gain.gain.setValueAtTime(0.24, t);
+          gain.gain.linearRampToValueAtTime(0.01, t + 0.45);
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.start(t);
+          osc.stop(t + 0.45);
+        } else if (type === 'boom') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(190, t);
+          osc.frequency.exponentialRampToValueAtTime(20, t + 1.2);
+          gain.gain.setValueAtTime(0.95, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 1.2);
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.start(t);
+          osc.stop(t + 1.2);
+        }
+      } catch (err) {
+        console.warn('Audio xatolik:', err);
+      }
+    }
+
+    function toggleSound() {
+      isSoundMuted = !isSoundMuted;
+      const b = document.getElementById('btn-sound');
+      if (isSoundMuted) {
+        b.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+        b.classList.replace('text-cyan-400', 'text-slate-500');
+      } else {
+        b.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+        b.classList.replace('text-slate-500', 'text-cyan-400');
+      }
+    }
+
+    let scene, camera, renderer, controls;
+    let mainGlasswareGroup, burnerFlameGroup, flamePointLight;
+    let bubbleParticles, steamParticles, explosionParticles, pourStreamParticles;
+    let handArmGroup;
+    let bottleMeshesMap = new Map();
+    let raycaster, mouseVector;
+    let handBones = {};
+
+    function init3DEnvironment() {
+      const canvas = document.getElementById('canvas3d');
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060c1c);
+      scene.fog = new THREE.FogExp2(0x060c1c, 0.022);
+
+      camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+      camera.position.set(0, 4.0, 7.8);
+
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI / 2 - 0.04;
+      controls.minDistance = 2.0;
+      controls.maxDistance = 14.0;
+      controls.target.set(0, 1.2, 0);
+
+      raycaster = new THREE.Raycaster();
+      mouseVector = new THREE.Vector2();
+
+      setupLabLighting();
+      buildSpaciousLaboratoryDesk();
+      setupParticleSystems();
+      buildAllVessels();
+      buildBunsenBurnerApparatus();
+      buildMendeleevShelvesAndBottles();
+      buildRealisticGameHand();
+
+      window.addEventListener('resize', onWindowResize);
+      canvas.addEventListener('pointerdown', onCanvasClick);
+    }
+
+    function setupLabLighting() {
+      const ambLight = new THREE.AmbientLight(0xffffff, 1.2);
+      scene.add(ambLight);
+
+      const mainLight = new THREE.DirectionalLight(0xffffff, 1.45);
+      mainLight.position.set(5, 12, 6);
+      mainLight.castShadow = true;
+      mainLight.shadow.mapSize.width = 1024;
+      mainLight.shadow.mapSize.height = 1024;
+      scene.add(mainLight);
+
+      const blueBackLight = new THREE.DirectionalLight(0x38bdf8, 0.65);
+      blueBackLight.position.set(-6, 6, -5);
+      scene.add(blueBackLight);
+
+      flamePointLight = new THREE.PointLight(0xf59e0b, 0, 6);
+      flamePointLight.position.set(0, 0.6, 0);
+      scene.add(flamePointLight);
+    }
+
+    function buildSpaciousLaboratoryDesk() {
+      const deskGeo = new THREE.BoxGeometry(18, 0.35, 10);
+      const deskMat = new THREE.MeshStandardMaterial({ color: 0x0f182b, roughness: 0.3, metalness: 0.2 });
+      const deskMesh = new THREE.Mesh(deskGeo, deskMat);
+      deskMesh.position.y = -0.175;
+      deskMesh.receiveShadow = true;
+      scene.add(deskMesh);
+
+      const matGeo = new THREE.BoxGeometry(6.5, 0.04, 4.2);
+      const matMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+      const matMesh = new THREE.Mesh(matGeo, matMat);
+      matMesh.position.set(0, 0.02, 0);
+      matMesh.receiveShadow = true;
+      scene.add(matMesh);
+
+      const wallGeo = new THREE.PlaneGeometry(28, 16);
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x060913, roughness: 0.85 });
+      const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+      wallMesh.position.set(0, 6, -5.2);
+      wallMesh.receiveShadow = true;
+      scene.add(wallMesh);
+    }
+
+    function buildAllVessels() {
+      if (mainGlasswareGroup) scene.remove(mainGlasswareGroup);
+      mainGlasswareGroup = new THREE.Group();
+
+      const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transmission: 0.94,
+        roughness: 0.03,
+        ior: 1.5,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+
+      // 1. Kolba (Flask)
+      const flaskGrp = new THREE.Group();
+      flaskGrp.position.copy(vessels.flask.pos);
+
+      const flaskPoints = [
+        new THREE.Vector2(0, 0),
+        new THREE.Vector2(1.15, 0),
+        new THREE.Vector2(1.18, 0.18),
+        new THREE.Vector2(0.42, 2.0),
+        new THREE.Vector2(0.40, 2.6),
+        new THREE.Vector2(0.46, 2.75)
+      ];
+      const flaskGlass = new THREE.Mesh(new THREE.LatheGeometry(flaskPoints, 36), glassMat);
+      flaskGlass.castShadow = true;
+      flaskGrp.add(flaskGlass);
+
+      const fLiqMat = new THREE.MeshPhysicalMaterial({
+        color: vessels.flask.color,
+        transmission: 0.4,
+        roughness: 0.08,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false
+      });
+      const fLiqGeo = new THREE.CylinderGeometry(0.33, 1.05, 1.7, 32);
+      fLiqGeo.translate(0, 0.85, 0);
+      const fLiqMesh = new THREE.Mesh(fLiqGeo, fLiqMat);
+      fLiqMesh.scale.set(0.95, 0.001, 0.95);
+      flaskGrp.add(fLiqMesh);
+
+      vessels.flask.group = flaskGrp;
+      vessels.flask.liquidMesh = fLiqMesh;
+      vessels.flask.liquidMat = fLiqMat;
+      mainGlasswareGroup.add(flaskGrp);
+
+      // 2. Stakan (Beaker)
+      const beakerGrp = new THREE.Group();
+      beakerGrp.position.copy(vessels.beaker.pos);
+
+      const bGlassGeo = new THREE.CylinderGeometry(0.65, 0.65, 1.6, 32, 1, true);
+      const bGlass = new THREE.Mesh(bGlassGeo, glassMat);
+      bGlass.position.y = 0.8;
+      beakerGrp.add(bGlass);
+
+      const bBottom = new THREE.Mesh(new THREE.CircleGeometry(0.65, 32), glassMat);
+      bBottom.rotation.x = -Math.PI / 2;
+      bBottom.position.y = 0.01;
+      beakerGrp.add(bBottom);
+
+      const bLiqMat = new THREE.MeshPhysicalMaterial({
+        color: vessels.beaker.color,
+        transmission: 0.4,
+        roughness: 0.08,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false
+      });
+      const bLiqGeo = new THREE.CylinderGeometry(0.59, 0.59, 1.5, 32);
+      bLiqGeo.translate(0, 0.75, 0);
+      const bLiqMesh = new THREE.Mesh(bLiqGeo, bLiqMat);
+      bLiqMesh.position.y = 0.02;
+      bLiqMesh.scale.set(1.0, 0.001, 1.0);
+      beakerGrp.add(bLiqMesh);
+
+      vessels.beaker.group = beakerGrp;
+      vessels.beaker.liquidMesh = bLiqMesh;
+      vessels.beaker.liquidMat = bLiqMat;
+      mainGlasswareGroup.add(beakerGrp);
+
+      // 3. Probirka (Test Tube)
+      const rackGrp = new THREE.Group();
+      rackGrp.position.copy(vessels.tube.pos);
+
+      const woodMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.65 });
+      const rackBase = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.7), woodMat);
+      rackBase.position.y = -0.65;
+      rackGrp.add(rackBase);
+
+      const rackTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.7), woodMat);
+      rackTop.position.y = 0.45;
+      rackGrp.add(rackTop);
+
+      for (let x of [-0.65, 0.65]) {
+        for (let z of [-0.25, 0.25]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.1, 8), woodMat);
+          leg.position.set(x, -0.1, z);
+          rackGrp.add(leg);
+        }
+      }
+
+      const tubeGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.3, 24, 1, true), glassMat);
+      rackGrp.add(tubeGlass);
+      const tubeSph = new THREE.Mesh(new THREE.SphereGeometry(0.14, 24, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), glassMat);
+      tubeSph.position.y = -0.65;
+      rackGrp.add(tubeSph);
+
+      const tLiqMat = new THREE.MeshPhysicalMaterial({
+        color: vessels.tube.color,
+        transmission: 0.4,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false
+      });
+      const tLiqGeo = new THREE.CylinderGeometry(0.12, 0.12, 1.15, 16);
+      tLiqGeo.translate(0, 0.575, 0);
+      const tLiqMesh = new THREE.Mesh(tLiqGeo, tLiqMat);
+      tLiqMesh.position.y = -0.62;
+      tLiqMesh.scale.set(1.0, 0.001, 1.0);
+      rackGrp.add(tLiqMesh);
+
+      vessels.tube.group = rackGrp;
+      vessels.tube.liquidMesh = tLiqMesh;
+      vessels.tube.liquidMat = tLiqMat;
+      mainGlasswareGroup.add(rackGrp);
+
+      scene.add(mainGlasswareGroup);
+    }
+
+    function buildBunsenBurnerApparatus() {
+      const burnerGrp = new THREE.Group();
+      burnerGrp.position.set(0, 0, 0);
+
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.3 });
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.045, 12, 32), metalMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.88;
+      burnerGrp.add(ring);
+
+      for (let a of [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.88, 8), metalMat);
+        leg.position.set(Math.cos(a) * 0.95, 0.44, Math.sin(a) * 0.95);
+        burnerGrp.add(leg);
+      }
+
+      const burnerPipe = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.16, 0.5, 16),
+        new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.85, roughness: 0.25 })
+      );
+      burnerPipe.position.y = 0.25;
+      burnerGrp.add(burnerPipe);
+
+      burnerFlameGroup = new THREE.Group();
+      const outerCone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.2, 0.55, 16),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.0 })
+      );
+      outerCone.geometry.translate(0, 0.27, 0);
+      burnerFlameGroup.add(outerCone);
+
+      const innerCone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.1, 0.35, 12),
+        new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.0 })
+      );
+      innerCone.geometry.translate(0, 0.17, 0);
+      burnerFlameGroup.add(innerCone);
+
+      burnerFlameGroup.position.y = 0.5;
+      burnerGrp.add(burnerFlameGroup);
+      scene.add(burnerGrp);
+    }
+
+    function buildMendeleevShelvesAndBottles() {
+      bottleMeshesMap.clear();
+
+      const shelfMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.3 });
+      const shelfBorderMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.4 });
+
+      const shelfConfigs = [
+        { x: -5.5, z: 0.2, rotY: 0.1 },
+        { x: 5.5, z: 0.2, rotY: -0.1 }
+      ];
+
+      shelfConfigs.forEach(cfg => {
+        const shelfGroup = new THREE.Group();
+        shelfGroup.position.set(cfg.x, 0, cfg.z);
+        shelfGroup.rotation.y = cfg.rotY;
+
+        for (let lvl = 0; lvl < 3; lvl++) {
+          const board = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.06, 0.9), shelfMat);
+          board.position.set(0, 0.45 + lvl * 0.9, 0);
+          shelfGroup.add(board);
+
+          const border = new THREE.Mesh(new THREE.BoxGeometry(3.62, 0.02, 0.04), shelfBorderMat);
+          border.position.set(0, 0.48 + lvl * 0.9, 0.44);
+          shelfGroup.add(border);
+        }
+
+        for (let sx of [-1.75, 1.75]) {
+          const pole = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.5, 0.9), shelfMat);
+          pole.position.set(sx, 1.25, 0);
+          shelfGroup.add(pole);
+        }
+
+        scene.add(shelfGroup);
+      });
+
+      MENDELEEV_BOTTLES.forEach((chem, idx) => {
+        const isLeft = idx < Math.ceil(MENDELEEV_BOTTLES.length / 2);
+        const colIdx = isLeft ? idx : idx - Math.ceil(MENDELEEV_BOTTLES.length / 2);
+
+        const row = Math.floor(colIdx / 3);
+        const col = colIdx % 3;
+
+        const posX = isLeft ? -5.5 + (col - 1) * 1.05 : 5.5 + (col - 1) * 1.05;
+        const posY = 0.5 + row * 0.9;
+        const posZ = 0.2 + (isLeft ? 0.05 : -0.05);
+
+        const bottle = createChemicalBottle(chem);
+        bottle.position.set(posX, posY, posZ);
+        bottle.userData = { chemData: chem, originPos: bottle.position.clone(), originRot: bottle.rotation.clone() };
+
+        scene.add(bottle);
+        bottleMeshesMap.set(chem.id, bottle);
+      });
+    }
+
+    function createChemicalBottle(chem) {
+      const group = new THREE.Group();
+
+      const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transmission: 0.88,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false
+      });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.65, 20), glassMat);
+      body.position.y = 0.325;
+      body.castShadow = true;
+      group.add(body);
+
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.22, 16), glassMat);
+      neck.position.y = 0.72;
+      group.add(neck);
+
+      const capMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.12, 16), capMat);
+      cap.position.y = 0.86;
+      group.add(cap);
+
+      const liqMat = new THREE.MeshPhysicalMaterial({
+        color: chem.color,
+        transmission: chem.state === 'liquid' ? 0.3 : 0.05,
+        roughness: chem.state === 'solid' ? 0.8 : 0.1,
+        transparent: true,
+        opacity: 0.95
+      });
+      const liq = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.5, 18), liqMat);
+      liq.position.y = 0.27;
+      group.add(liq);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, 256, 128);
+      ctx.fillStyle = chem.hex;
+      ctx.fillRect(0, 0, 12, 128);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 54px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(chem.symbol, 134, 60);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '22px sans-serif';
+      ctx.fillText(chem.name.substring(0, 16), 134, 105);
+
+      const labelTex = new THREE.CanvasTexture(canvas);
+      const labelMat = new THREE.MeshBasicMaterial({ map: labelTex });
+      const labelMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.245, 0.38, 20, 1, true, -Math.PI / 2.2, Math.PI / 1.1), labelMat);
+      labelMesh.position.y = 0.33;
+      group.add(labelMesh);
+
+      return group;
+    }
+
+    function buildRealisticGameHand() {
+      handArmGroup = new THREE.Group();
+      handArmGroup.position.set(3.4, 1.4, 3.4);
+      handArmGroup.rotation.y = -Math.PI / 3.8;
+
+      // 1. Shifokor laboratoriya xalati (Oq mato teksturasi, mikroskopik qatlamlar)
+      const labCoatMat = new THREE.MeshStandardMaterial({
+        color: 0xf8fafc,
+        roughness: 0.88,
+        metalness: 0.04
+      });
+
+      // 2. AAA Game Stylized Medical Cyan Nitrile Glove (Surgeon Simulator / Half-Life: Alyx uslubida)
+      const nitrileGloveMat = new THREE.MeshPhysicalMaterial({
+        color: 0x0284c7, // Yorqin shifokor nitril zangorisi
+        roughness: 0.24,
+        metalness: 0.12,
+        clearcoat: 0.45,
+        clearcoatRoughness: 0.15,
+        transmission: 0.05,
+        ior: 1.45
+      });
+
+      const knuckleMat = new THREE.MeshStandardMaterial({
+        color: 0x0369a1,
+        roughness: 0.32,
+        metalness: 0.15
+      });
+
+      // A. BILAK VA XALAT YENGI (Forearm with anatomical taper and realistic folds)
+      const forearmSleeve = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.44, 0.35, 1.85, 24),
+        labCoatMat
+      );
+      forearmSleeve.rotation.z = Math.PI / 2.35;
+      forearmSleeve.position.set(0.95, 0.18, 0);
+      forearmSleeve.castShadow = true;
+      handArmGroup.add(forearmSleeve);
+
+      // Yeng burmalari (Cloth folds)
+      for (let f = 0; f < 3; f++) {
+        const fold = new THREE.Mesh(new THREE.TorusGeometry(0.38 + f * 0.02, 0.038, 12, 24), labCoatMat);
+        fold.rotation.y = Math.PI / 2;
+        fold.position.set(0.48 + f * 0.38, 0.28 - f * 0.06, 0);
+        handArmGroup.add(fold);
+      }
+
+      // Xalat manjeti (Cuff ring)
+      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.37, 0.06, 16, 28), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.65 }));
+      cuff.rotation.y = Math.PI / 2;
+      cuff.position.set(0.08, 0.42, 0);
+      handArmGroup.add(cuff);
+
+      // B. BILAK VA QO'LQOP BOG'LAMI (Wrist band with nitrile elasticity)
+      const wristBand = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.27, 0.42, 24), nitrileGloveMat);
+      wristBand.rotation.z = Math.PI / 2.35;
+      wristBand.position.set(-0.12, 0.48, 0);
+      handArmGroup.add(wristBand);
+
+      // C. ANATOMIK KAFT VA MUSHAKLAR (Palm with Thenar & Hypothenar muscles)
+      const palmGroup = new THREE.Group();
+      palmGroup.position.set(-0.38, 0.58, 0);
+
+      // Kaft asosi
+      const palmMain = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.36, 0.20), nitrileGloveMat);
+      palmGroup.add(palmMain);
+
+      // Bosh barmoq mushak tepaligi (Thenar eminence)
+      const thenar = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 14), nitrileGloveMat);
+      thenar.scale.set(1.25, 1.05, 0.85);
+      thenar.position.set(0.12, -0.07, -0.09);
+      palmGroup.add(thenar);
+
+      // Jimjiloq tomon mushak tepaligi (Hypothenar)
+      const hypothenar = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 12), nitrileGloveMat);
+      hypothenar.scale.set(1.1, 0.95, 0.8);
+      hypothenar.position.set(0.10, 0.08, 0.09);
+      palmGroup.add(hypothenar);
+
+      // D. 4 TA BO'G'INLI BARMOQLAR (Phalanges with smooth articulation)
+      handBones.fingers = [];
+
+      const fingerData = [
+        { z: 0.075, y: 0.12, len: 1.0, name: 'Index' },
+        { z: 0.025, y: 0.14, len: 1.1, name: 'Middle' },
+        { z: -0.028, y: 0.13, len: 1.0, name: 'Ring' },
+        { z: -0.08, y: 0.10, len: 0.85, name: 'Pinky' }
+      ];
+
+      fingerData.forEach((fCfg, idx) => {
+        const fingerBase = new THREE.Group();
+        fingerBase.position.set(-0.26, fCfg.y, fCfg.z);
+
+        // Bo'g'in 1 (Proximal)
+        const pLen = 0.23 * fCfg.len;
+        const knuckle1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 14), knuckleMat);
+        fingerBase.add(knuckle1);
+
+        const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.042, pLen, 14), nitrileGloveMat);
+        seg1.position.x = -pLen / 2;
+        seg1.rotation.z = Math.PI / 2;
+        fingerBase.add(seg1);
+
+        // Bo'g'in 2 (Intermediate)
+        const joint2 = new THREE.Group();
+        joint2.position.set(-pLen, 0, 0);
+
+        const knuckle2 = new THREE.Mesh(new THREE.SphereGeometry(0.044, 14, 14), knuckleMat);
+        joint2.add(knuckle2);
+
+        const mLen = 0.18 * fCfg.len;
+        const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.038, mLen, 14), nitrileGloveMat);
+        seg2.position.x = -mLen / 2;
+        seg2.rotation.z = Math.PI / 2;
+        joint2.add(seg2);
+
+        // Bo'g'in 3 (Distal + Barmoq uchi yostig'i)
+        const joint3 = new THREE.Group();
+        joint3.position.set(-mLen, 0, 0);
+
+        const dLen = 0.15 * fCfg.len;
+        const seg3 = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.033, dLen, 14), nitrileGloveMat);
+        seg3.position.x = -dLen / 2;
+        seg3.rotation.z = Math.PI / 2;
+        joint3.add(seg3);
+
+        const tipPad = new THREE.Mesh(new THREE.SphereGeometry(0.034, 14, 12), nitrileGloveMat);
+        tipPad.position.x = -dLen;
+        joint3.add(tipPad);
+
+        joint2.add(joint3);
+        fingerBase.add(joint2);
+        palmGroup.add(fingerBase);
+
+        handBones.fingers.push({
+          root: fingerBase,
+          joint2: joint2,
+          joint3: joint3,
+          spread: (idx - 1.5) * 0.06
+        });
+      });
+
+      // E. QARAMA-QARSHI BOSH BARMOQ (Opposable Thumb: Metacarpal + Proximal + Distal)
+      const thumbBase = new THREE.Group();
+      thumbBase.position.set(-0.07, -0.07, -0.13);
+      thumbBase.rotation.set(0.65, 0.85, -0.42);
+
+      const thumbSeg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.054, 0.049, 0.23, 14), nitrileGloveMat);
+      thumbSeg1.position.x = -0.115;
+      thumbSeg1.rotation.z = Math.PI / 2;
+      thumbBase.add(thumbSeg1);
+
+      const thumbJoint2 = new THREE.Group();
+      thumbJoint2.position.set(-0.23, 0, 0);
+
+      const thumbKnuckle = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 14), knuckleMat);
+      thumbJoint2.add(thumbKnuckle);
+
+      const thumbSeg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.039, 0.19, 14), nitrileGloveMat);
+      thumbSeg2.position.x = -0.095;
+      thumbSeg2.rotation.z = Math.PI / 2;
+      thumbJoint2.add(thumbSeg2);
+
+      const thumbTipPad = new THREE.Mesh(new THREE.SphereGeometry(0.04, 14, 12), nitrileGloveMat);
+      thumbTipPad.position.x = -0.19;
+      thumbJoint2.add(thumbTipPad);
+
+      thumbBase.add(thumbJoint2);
+      palmGroup.add(thumbBase);
+
+      handBones.thumb = { root: thumbBase, joint2: thumbJoint2 };
+      handArmGroup.add(palmGroup);
+
+      handArmGroup.userData = {
+        restPos: handArmGroup.position.clone(),
+        restRot: handArmGroup.rotation.clone()
+      };
+
+      scene.add(handArmGroup);
+      setHandGripFactor(0.2); // Tinch dam olish holatidagi qo'l
+    }
+
+    function setHandGripFactor(factor) {
+      if (!handBones.fingers) return;
+
+      handBones.fingers.forEach(f => {
+        f.root.rotation.z = -0.12 - factor * 0.9;
+        f.root.rotation.y = f.spread * (1.0 - factor);
+        f.joint2.rotation.z = -factor * 1.05;
+        f.joint3.rotation.z = -factor * 0.85;
+      });
+
+      if (handBones.thumb) {
+        handBones.thumb.root.rotation.z = -0.32 - factor * 0.72;
+        handBones.thumb.joint2.rotation.z = -factor * 0.8;
+      }
+    }
+
+    function setupParticleSystems() {
+      // 1. Quyish oqimi
+      pourStreamParticles = new THREE.Group();
+      const pGeo = new THREE.SphereGeometry(0.028, 8, 8);
+      const pMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
+      for (let i = 0; i < 40; i++) {
+        const drop = new THREE.Mesh(pGeo, pMat);
+        drop.visible = false;
+        drop.userData = { vy: 0.08, active: false };
+        pourStreamParticles.add(drop);
+      }
+      scene.add(pourStreamParticles);
+
+      // 2. Qaynash va gaz pufakchalari
+      bubbleParticles = new THREE.Group();
+      const bGeo = new THREE.SphereGeometry(0.024, 8, 8);
+      const bMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+      for (let i = 0; i < 35; i++) {
+        const bub = new THREE.Mesh(bGeo, bMat);
+        bub.position.set((Math.random() - 0.5) * 0.7, 1.0 + Math.random() * 0.8, (Math.random() - 0.5) * 0.7);
+        bub.userData = { vy: 0.015 + Math.random() * 0.025, seed: Math.random() * 10 };
+        bub.visible = false;
+        bubbleParticles.add(bub);
+      }
+      scene.add(bubbleParticles);
+
+      // 3. Qaynash bug'i
+      steamParticles = new THREE.Group();
+      const sGeo = new THREE.SphereGeometry(0.08, 8, 8);
+      const sMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.3 });
+      for (let i = 0; i < 30; i++) {
+        const sm = new THREE.Mesh(sGeo, sMat);
+        sm.position.set(0, 3.6, 0);
+        sm.userData = {
+          vy: 0.02 + Math.random() * 0.02,
+          vx: (Math.random() - 0.5) * 0.012,
+          vz: (Math.random() - 0.5) * 0.012,
+          life: 0,
+          maxLife: 40 + Math.random() * 30
+        };
+        sm.visible = false;
+        steamParticles.add(sm);
+      }
+      scene.add(steamParticles);
+
+      // 4. Portlash parchalari
+      explosionParticles = new THREE.Group();
+      const shardGeo = new THREE.TetrahedronGeometry(0.09, 0);
+      const shardMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 0.9, transparent: true, opacity: 0.85 });
+      for (let i = 0; i < 50; i++) {
+        const shard = new THREE.Mesh(shardGeo, shardMat);
+        shard.position.set(0, 1.5, 0);
+        shard.userData = {
+          vx: (Math.random() - 0.5) * 0.28,
+          vy: 0.06 + Math.random() * 0.25,
+          vz: (Math.random() - 0.5) * 0.28,
+          rotX: Math.random() * 0.25,
+          rotY: Math.random() * 0.25
+        };
+        shard.visible = false;
+        explosionParticles.add(shard);
+      }
+      scene.add(explosionParticles);
+    }
+
+    function onCanvasClick(evt) {
+      if (isHandAnimating) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouseVector.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseVector.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouseVector, camera);
+      const bottleMeshes = Array.from(bottleMeshesMap.values());
+      const intersects = raycaster.intersectObjects(bottleMeshes, true);
+
+      if (intersects.length > 0) {
+        let root = intersects[0].object;
+        while (root.parent && !root.userData.chemData) {
+          root = root.parent;
+        }
+        if (root.userData && root.userData.chemData) {
+          openDispenseModal(root.userData.chemData);
+        }
+      }
+    }
+
+    function animateArmGrabAndPour(chem, amount) {
+      const bottle = bottleMeshesMap.get(chem.id);
+      if (!bottle || isHandAnimating) return;
+
+      isHandAnimating = true;
+      const targetVessel = vessels[activeVesselKey];
+      const targetPourPos = targetVessel.pos.clone().add(new THREE.Vector3(0.65, 2.5, 0));
+
+      const bottleStartPos = bottle.position.clone();
+      const bottleStartRot = bottle.rotation.clone();
+
+      // Barmoqlarni ochish (Approaching bottle)
+      new TWEEN.Tween({ g: 0.2 })
+        .to({ g: 0.0 }, 400)
+        .onUpdate(obj => setHandGripFactor(obj.g))
+        .start();
+
+      // 1-FAZA: Qo'l butilkaga yaqinlashadi
+      new TWEEN.Tween(handArmGroup.position)
+        .to({ x: bottleStartPos.x + 0.35, y: bottleStartPos.y + 0.18, z: bottleStartPos.z + 0.45 }, 600)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .onComplete(() => {
+          // Barmoqlarni mahkam qisib butilkani ushlash
+          new TWEEN.Tween({ g: 0.0 })
+            .to({ g: 0.98 }, 350)
+            .easing(TWEEN.Easing.Back.Out)
+            .onUpdate(obj => setHandGripFactor(obj.g))
+            .onComplete(() => {
+              bottle.parent = handArmGroup;
+              bottle.position.set(-0.38, 0.48, 0);
+
+              // 2-FAZA: Idish ustiga olib borish
+              new TWEEN.Tween(handArmGroup.position)
+                .to({ x: targetPourPos.x, y: targetPourPos.y, z: targetPourPos.z }, 750)
+                .easing(TWEEN.Easing.Cubic.InOut)
+                .onComplete(() => {
+                  // 3-FAZA: Bilakni burish va to'kish
+                  new TWEEN.Tween(handArmGroup.rotation)
+                    .to({ z: Math.PI / 1.7, x: 0.3 }, 500)
+                    .easing(TWEEN.Easing.Back.Out)
+                    .onStart(() => {
+                      playSfx('pour');
+                      startPourParticleStream(targetPourPos, targetVessel.pos, chem.color);
+                    })
+                    .onComplete(() => {
+                      setTimeout(() => {
+                        stopPourParticleStream();
+
+                        // Kimyoviy jarayonni hisoblash (Ogohlantirishsiz, xato bo'lsa darhol portlaydi)
+                        executeChemicalPour(targetVessel, chem, amount);
+
+                        // 4-FAZA: Qaytadan to'g'rilash va butilkani joyiga qaytarish
+                        new TWEEN.Tween(handArmGroup.rotation)
+                          .to({ x: handArmGroup.userData.restRot.x, y: handArmGroup.userData.restRot.y, z: handArmGroup.userData.restRot.z }, 500)
+                          .onComplete(() => {
+                            new TWEEN.Tween(handArmGroup.position)
+                              .to({ x: bottleStartPos.x + 0.35, y: bottleStartPos.y + 0.18, z: bottleStartPos.z + 0.45 }, 700)
+                              .easing(TWEEN.Easing.Cubic.InOut)
+                              .onComplete(() => {
+                                // Butilkani qo'yib yuborish
+                                new TWEEN.Tween({ g: 0.98 })
+                                  .to({ g: 0.0 }, 300)
+                                  .onUpdate(obj => setHandGripFactor(obj.g))
+                                  .onComplete(() => {
+                                    scene.add(bottle);
+                                    bottle.position.copy(bottleStartPos);
+                                    bottle.rotation.copy(bottleStartRot);
+
+                                    // Qo'lni dam olish joyiga qaytarish
+                                    new TWEEN.Tween(handArmGroup.position)
+                                      .to({ x: handArmGroup.userData.restPos.x, y: handArmGroup.userData.restPos.y, z: handArmGroup.userData.restPos.z }, 600)
+                                      .easing(TWEEN.Easing.Quadratic.Out)
+                                      .onComplete(() => {
+                                        setHandGripFactor(0.2);
+                                        isHandAnimating = false;
+                                      })
+                                      .start();
+                                  })
+                                  .start();
+                              })
+                              .start();
+                          })
+                          .start();
+                      }, 700);
+                    })
+                    .start();
+                })
+                .start();
+            })
+            .start();
+        })
+        .start();
+    }
+
+    function startPourParticleStream(fromPos, toPos, colHex) {
+      pourStreamParticles.children.forEach(p => {
+        p.material.color.setHex(colHex);
+        p.position.set(fromPos.x - 0.2 + (Math.random() - 0.5) * 0.05, fromPos.y - 0.1, fromPos.z);
+        p.visible = true;
+        p.userData.active = true;
+      });
+    }
+
+    function stopPourParticleStream() {
+      pourStreamParticles.children.forEach(p => {
+        p.visible = false;
+        p.userData.active = false;
+      });
+    }
+
+    function executeChemicalPour(vessel, chem, amt) {
+      const curAmt = vessel.elements.get(chem.id) || 0;
+      vessel.elements.set(chem.id, curAmt + amt);
+      vessel.volume = Math.min(vessel.maxVol, vessel.volume + amt);
+
+      let explosionTriggered = false;
+      let explosionReason = "";
+      let reactionName = `${chem.name} qo'shildi (${amt} ${chem.state === 'solid' ? 'g' : 'ml'})`;
+
+      // 1. XAVFLI PORTLASH HOLATLARI (OGOHLANTIRISHLARSIZ BEVOSITA SODIR BO'LADI)
+      // A) Natriy yoki Kaliyni suvga tashlash
+      if ((vessel.has('Na') && vessel.has('H2O')) || (vessel.has('K') && vessel.has('H2O'))) {
+        explosionTriggered = true;
+        explosionReason = "Faol ishqoriy metall suv bilan shiddatli reaksiyaga kirishib, ajralgan vodorod gazini qizdirib yubordi va havoda kuchli gumburlash ro'y berdi!";
+      }
+
+      // B) Sulfat yoki Nitrat kislotasiga shoshilib suv quyish
+      if (chem.id === 'H2O' && (vessel.has('H2SO4') || vessel.has('HNO3')) && (vessel.elements.get('H2SO4') > 15 || vessel.elements.get('HNO3') > 15)) {
+        explosionTriggered = true;
+        explosionReason = "Konsentrlangan kislotaga to'g'ridan-to'g'ri suv quyildi! Qattiq issiqlik ajralib, eritma sachrab idish yorilib ketdi!";
+      }
+
+      // C) Gorelka ostida 128°C dan oshib ketishi
+      if (vessel.temp >= 128 && vessel.volume > 0 && !vessel.has('H2O')) {
+        explosionTriggered = true;
+        explosionReason = "Quruq moddalar gorelka ustida me'yordan ortiq qizdirilib, shisha bosimga chidamay portladi!";
+      }
+
+      if (explosionTriggered) {
+        triggerLaboratoryExplosion(explosionReason);
+        return;
+      }
+
+      // 2. TO'G'RI REAKSIYALAR VA SINTEZLAR
+      // A) Osh tuzi (2Na + Cl2 -> 2NaCl)
+      if (vessel.has('Na') && vessel.has('Cl')) {
+        vessel.formedProducts.push('Osh tuzi (NaCl) kristallari');
+        vessel.color.setHex(0xf8fafc);
+        vessel.temp += 28;
+        reactionName = "Sintez: 2Na + Cl₂ → 2NaCl (Yorqin nur bilan oq osh tuzi hosil bo'ldi)";
+        playSfx('react');
+      }
+      // B) Qora Temir sulfidi (Fe + S -> FeS)
+      else if (vessel.has('Fe') && vessel.has('S') && isBurnerOn) {
+        vessel.formedProducts.push('Temir (II) sulfid (FeS)');
+        vessel.color.setHex(0x1e293b);
+        reactionName = "Termik Sintez: Fe + S → FeS (Qora temir sulfid cho'kmasi)";
+        playSfx('react');
+      }
+      // C) Misning Nitrat kislotada erishi (Cu + 4HNO3 -> Cu(NO3)2 + 2NO2)
+      else if (vessel.has('Cu') && vessel.has('HNO3')) {
+        vessel.formedProducts.push('Mis nitrat Cu(NO₃)₂ va NO₂↑ gazi');
+        vessel.color.setHex(0x0284c7);
+        vessel.effervescent = true;
+        reactionName = "Oksidlanish: Cu + 4HNO₃ → Cu(NO₃)₂ + 2NO₂↑ (Zangori eritma)";
+        playSfx('react');
+      }
+      // D) Neytrallanish (HCl + NaOH -> NaCl + H2O)
+      else if (vessel.has('HCl') && vessel.has('NaOH')) {
+        vessel.formedProducts.push('Osh tuzi (NaCl) eritmasi');
+        vessel.ph = 7.0 + (Math.random() * 0.4 - 0.2);
+        vessel.temp += 16;
+        vessel.color.setHex(0x7dd3fc);
+        reactionName = "Neytrallanish: HCl + NaOH → NaCl + H₂O (Issiqlik ajraldi)";
+        vessel.effervescent = true;
+        playSfx('react');
+      }
+      // E) Vodorod ajralishi (Zn + 2HCl -> ZnCl2 + H2)
+      else if (vessel.has('Zn') && vessel.has('HCl')) {
+        vessel.formedProducts.push('ZnCl₂ va H₂↑ (Vodorod gazi)');
+        vessel.color.setHex(0xa5f3fc);
+        vessel.effervescent = true;
+        reactionName = "Gaz ajralishi: Zn + 2HCl → ZnCl₂ + H₂↑ (Shiddatli pufakchalar)";
+        playSfx('bubble');
+      }
+      // F) Fenolftalein indikatori ishqorda
+      else if (vessel.has('Phenol') && (vessel.has('NaOH') || vessel.ph > 8.0)) {
+        vessel.color.setHex(0xe11d48);
+        reactionName = "Indikator: Fenolftalein ishqorda yorqin to'q malina rangiga kirdi!";
+        playSfx('bubble');
+      }
+      // G) Oddiy aralashma
+      else {
+        vessel.color.setHex(chem.color);
+        playSfx('bubble');
+      }
+
+      // pH hisoblash
+      let sumPh = 0, totalW = 0;
+      vessel.elements.forEach((v, id) => {
+        const item = MENDELEEV_BOTTLES.find(x => x.id === id);
+        if (item) {
+          sumPh += item.ph * v;
+          totalW += v;
+        }
+      });
+      if (totalW > 0) vessel.ph = Math.max(0.2, Math.min(14, sumPh / totalW));
+
+      addJournalEntry(reactionName);
+      updateVesselLiquidVisual(vessel);
+      updateTelemetryAndHUD();
+    }
+
+    function updateVesselLiquidVisual(vessel) {
+      if (!vessel.liquidMesh || !vessel.liquidMat) return;
+      const fillRatio = Math.min(1.0, vessel.volume / vessel.maxVol);
+
+      if (fillRatio > 0.01) {
+        vessel.liquidMesh.scale.y = fillRatio;
+        vessel.liquidMat.opacity = 0.88;
+      } else {
+        vessel.liquidMesh.scale.y = 0.001;
+        vessel.liquidMat.opacity = 0.0;
+      }
+    }
+
+    function triggerLaboratoryExplosion(reason) {
+      playSfx('boom');
+
+      document.body.classList.add('heavy-blast-shake');
+      document.getElementById('fx-flash').style.opacity = '1';
+      document.getElementById('fx-smoke').style.opacity = '1';
+
+      if (mainGlasswareGroup) {
+        mainGlasswareGroup.visible = false;
+      }
+
+      explosionParticles.children.forEach(shard => {
+        shard.visible = true;
+        shard.position.set(0, 1.2, 0);
+      });
+
+      setTimeout(() => {
+        document.body.classList.remove('heavy-blast-shake');
+        document.getElementById('fx-flash').style.opacity = '0';
+      }, 900);
+
+      document.getElementById('explosion-reason-text').innerText = reason;
+      const modal = document.getElementById('explosion-modal');
+      const card = document.getElementById('explosion-card');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      card.classList.remove('scale-90');
+
+      addJournalEntry(`💥 HALOKATLI PORTLASH: ${reason}`);
+    }
+
+    function resetAndRenewLab() {
+      const modal = document.getElementById('explosion-modal');
+      const card = document.getElementById('explosion-card');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      card.classList.add('scale-90');
+
+      document.getElementById('fx-smoke').style.opacity = '0';
+
+      Object.keys(vessels).forEach(k => {
+        const v = vessels[k];
+        v.elements.clear();
+        v.formedProducts = [];
+        v.volume = 0;
+        v.temp = 22.0;
+        v.ph = 7.0;
+        v.effervescent = false;
+        v.color.setHex(k === 'flask' ? 0x38bdf8 : k === 'beaker' ? 0x10b981 : 0xa855f7);
+      });
+
+      explosionParticles.children.forEach(s => s.visible = false);
+      buildAllVessels();
+
+      if (isBurnerOn) toggleBunsenBurner();
+
+      updateTelemetryAndHUD();
+      addJournalEntry("Laboratoriya tozalandi va yangi toza shisha idishlar o'rnatildi.");
+    }
+
+    function switchActiveVessel(key) {
+      activeVesselKey = key;
+
+      ['flask', 'beaker', 'tube'].forEach(k => {
+        const btn = document.getElementById(`btn-vessel-${k}`);
+        if (k === key) {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition bg-cyan-500 text-white shadow';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition text-slate-400 hover:text-white';
+        }
+      });
+
+      const current = vessels[key];
+      document.getElementById('active-vessel-title').innerText = current.name;
+      document.getElementById('shelf-target-name').innerText = current.name.split(' ')[0];
+
+      new TWEEN.Tween(controls.target)
+        .to({ x: current.pos.x, y: current.pos.y + 0.5, z: current.pos.z }, 600)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+
+      updateTelemetryAndHUD();
+    }
+
+    function washActiveVessel() {
+      const v = vessels[activeVesselKey];
+      v.elements.clear();
+      v.formedProducts = [];
+      v.volume = 0;
+      v.temp = 22.0;
+      v.ph = 7.0;
+      v.effervescent = false;
+      v.color.setHex(activeVesselKey === 'flask' ? 0x38bdf8 : activeVesselKey === 'beaker' ? 0x10b981 : 0xa855f7);
+
+      updateVesselLiquidVisual(v);
+      updateTelemetryAndHUD();
+      playSfx('pour');
+      addJournalEntry(`${v.name} yuvildi va toza holatga keltirildi.`);
+    }
+
+    function toggleBunsenBurner() {
+      isBurnerOn = !isBurnerOn;
+      const btn = document.getElementById('btn-burner');
+      const lbl = document.getElementById('burner-label');
+
+      if (isBurnerOn) {
+        lbl.innerText = "Gorelka: YONIQ";
+        btn.classList.add('bg-amber-500', 'text-white', 'shadow-lg', 'shadow-amber-500/40');
+        btn.classList.remove('glass-card', 'text-amber-400');
+        burnerFlameGroup.children.forEach(c => c.material.opacity = 0.85);
+        flamePointLight.intensity = 2.8;
+        addJournalEntry("Bunzen gorelkasi yoqildi. Kolba qizdirilmoqda.");
+      } else {
+        lbl.innerText = "Gorelka: O'chiq";
+        btn.classList.remove('bg-amber-500', 'text-white', 'shadow-lg', 'shadow-amber-500/40');
+        btn.classList.add('glass-card', 'text-amber-400');
+        burnerFlameGroup.children.forEach(c => c.material.opacity = 0.0);
+        flamePointLight.intensity = 0.0;
+        addJournalEntry("Bunzen gorelkasi o'chirildi.");
+      }
+    }
+
+    function updateTelemetryAndHUD() {
+      const v = vessels[activeVesselKey];
+
+      document.getElementById('ui-volume').innerText = `${Math.round(v.volume)} / ${v.maxVol} ml`;
+      document.getElementById('ui-temperature').innerText = `${Math.round(v.temp)}°C`;
+      document.getElementById('ui-ph').innerText = v.ph.toFixed(1);
+
+      const badge = document.getElementById('active-vessel-badge');
+      if (v.formedProducts.length > 0) {
+        badge.innerText = v.formedProducts[v.formedProducts.length - 1];
+        badge.className = "text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-semibold";
+      } else if (v.elements.size > 0) {
+        badge.innerText = `${v.elements.size} modda`;
+        badge.className = "text-[11px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-semibold";
+      } else {
+        badge.innerText = "Bo'sh";
+        badge.className = "text-[11px] px-2 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono";
+      }
+
+      const list = document.getElementById('vessel-contents-list');
+      list.innerHTML = '';
+      if (v.elements.size === 0) {
+        list.innerHTML = `<div class="text-[11px] text-slate-500 italic py-2 text-center">Idish bo'sh. Tokchadagi butilkani tanlang!</div>`;
+        document.getElementById('comp-count-label').innerText = "0 ta";
+      } else {
+        document.getElementById('comp-count-label').innerText = `${v.elements.size} ta`;
+        v.elements.forEach((amt, id) => {
+          const item = MENDELEEV_BOTTLES.find(x => x.id === id);
+          const row = document.createElement('div');
+          row.className = 'flex items-center justify-between bg-white/5 px-2 py-1 rounded-lg text-xs font-mono border border-white/5';
+          row.innerHTML = `
+            <span class="text-slate-200">${item ? item.symbol : id} (${item ? item.name : ''})</span>
+            <span class="text-cyan-300 font-bold">${amt} ${item && item.state === 'solid' ? 'g' : 'ml'}</span>
+          `;
+          list.appendChild(row);
+        });
+      }
+
+      // Holografik suzuvchi HUD yangilanishi
+      document.getElementById('hud-name').innerText = v.name;
+      const hudContent = document.getElementById('hud-contents');
+      const hudReaction = document.getElementById('hud-reaction');
+
+      if (v.elements.size === 0) {
+        hudContent.innerText = "Tarkibi: Bo'sh";
+        hudReaction.classList.add('hidden');
+      } else {
+        const parts = [];
+        v.elements.forEach((amt, id) => {
+          const item = MENDELEEV_BOTTLES.find(x => x.id === id);
+          parts.push(`${item ? item.symbol : id} (${amt}${item && item.state === 'solid' ? 'g' : 'ml'})`);
+        });
+        hudContent.innerText = `Tarkibi: ${parts.join(' + ')}`;
+
+        if (v.formedProducts.length > 0) {
+          hudReaction.classList.remove('hidden');
+          hudReaction.innerText = `Yangi mahsulot: ${v.formedProducts[v.formedProducts.length - 1]}`;
+        } else {
+          hudReaction.classList.add('hidden');
+        }
+      }
+    }
+
+    function updateFloatingHudPosition() {
+      const hud = document.getElementById('vessel-hud');
+      const v = vessels[activeVesselKey];
+      if (!v || !camera) return;
+
+      const worldPos = v.pos.clone().add(new THREE.Vector3(0, activeVesselKey === 'flask' ? 3.0 : 2.1, 0));
+      const screenPos = worldPos.project(camera);
+
+      const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-(screenPos.y * 0.5) + 0.5) * window.innerHeight;
+
+      hud.style.left = `${x}px`;
+      hud.style.top = `${y}px`;
+
+      if (screenPos.z > 1.0) {
+        hud.style.opacity = '0';
+      } else {
+        hud.style.opacity = '1';
+      }
+    }
+
+    function addJournalEntry(text) {
+      const j = document.getElementById('journal-scroll');
+      const time = new Date().toTimeString().split(' ')[0];
+      const entry = document.createElement('div');
+      entry.className = 'p-2 rounded-lg bg-white/5 border border-white/5 text-slate-300 leading-snug';
+      entry.innerHTML = `<span class="text-cyan-400 font-bold">[${time}]</span> ${text}`;
+      j.appendChild(entry);
+      j.scrollTop = j.scrollHeight;
+    }
+
+    function clearJournalLog() {
+      document.getElementById('journal-scroll').innerHTML = '';
+      addJournalEntry("Jurnal tozalandi.");
+    }
+
+    function resetCameraAngle() {
+      new TWEEN.Tween(camera.position)
+        .to({ x: 0, y: 4.0, z: 7.8 }, 600)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+      new TWEEN.Tween(controls.target)
+        .to({ x: 0, y: 1.2, z: 0 }, 600)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+    }
+
+    // Modal dialog amallari (OGOHLANTIRISHLARSIZ)
+    function openDispenseModal(chem) {
+      activeDispenseItem = chem;
+      const modal = document.getElementById('dispense-modal');
+      const card = document.getElementById('dispense-card');
+
+      document.getElementById('modal-bottle-symbol').innerText = chem.symbol;
+      document.getElementById('modal-bottle-name').innerText = chem.name;
+      document.getElementById('modal-bottle-category').innerText = chem.type;
+      document.getElementById('modal-bottle-badge').style.background = `linear-gradient(135deg, ${chem.hex}, #1e3a8a)`;
+
+      const unit = chem.state === 'solid' ? 'g' : 'ml';
+      document.querySelectorAll('.unit-span').forEach(u => u.innerText = unit);
+
+      setAmountPreset(chem.state === 'solid' ? 10 : 30);
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      card.classList.remove('scale-95');
+    }
+
+    function closeDispenseModal() {
+      const modal = document.getElementById('dispense-modal');
+      const card = document.getElementById('dispense-card');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      card.classList.add('scale-95');
+      activeDispenseItem = null;
+    }
+
+    function updateDispenseSlider(val) {
+      const unit = activeDispenseItem && activeDispenseItem.state === 'solid' ? 'g' : 'ml';
+      document.getElementById('dispense-amount-text').innerText = `${val} ${unit}`;
+    }
+
+    function setAmountPreset(val) {
+      document.getElementById('dispense-slider').value = val;
+      updateDispenseSlider(val);
+    }
+
+    function confirmAndAnimateHandPour() {
+      if (!activeDispenseItem) return;
+      const amt = parseInt(document.getElementById('dispense-slider').value, 10);
+      const chem = activeDispenseItem;
+      closeDispenseModal();
+
+      animateArmGrabAndPour(chem, amt);
+    }
+
+    function toggleRecipesBook() {
+      const m = document.getElementById('recipes-modal');
+      const isOpen = !m.classList.contains('pointer-events-none');
+      if (isOpen) m.classList.add('opacity-0', 'pointer-events-none');
+      else m.classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function populateShelfCards(filter = 'all', searchQuery = '') {
+      const container = document.getElementById('rack-cards-grid');
+      container.innerHTML = '';
+
+      const filtered = MENDELEEV_BOTTLES.filter(chem => {
+        const matchesCategory = (filter === 'all' || chem.cat === filter);
+        const matchesSearch = searchQuery === '' ||
+          chem.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          chem.symbol.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesCategory && matchesSearch;
+      });
+
+      filtered.forEach(chem => {
+        const btn = document.createElement('button');
+        btn.className = 'glass-card p-1.5 rounded-lg flex flex-col items-start text-left group';
+        btn.onclick = () => openDispenseModal(chem);
+
+        btn.innerHTML = `
+          <div class="w-full flex items-center justify-between mb-0.5">
+            <span class="text-[11px] font-bold font-mono text-cyan-300 group-hover:text-cyan-200">${chem.symbol}</span>
+            <span class="w-2 h-2 rounded-full shadow" style="background-color: ${chem.hex}"></span>
+          </div>
+          <div class="text-[10px] font-semibold text-slate-200 truncate w-full">${chem.name}</div>
+          <div class="text-[8px] text-slate-400 mt-0.5 truncate w-full">${chem.type}</div>
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    function filterShelfCategory(cat, element) {
+      document.querySelectorAll('.shelf-pill').forEach(b => {
+        b.className = 'shelf-pill px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 whitespace-nowrap text-[10px]';
+      });
+      element.className = 'shelf-pill px-2 py-0.5 rounded-md bg-cyan-500 text-white font-medium whitespace-nowrap text-[10px]';
+      populateShelfCards(cat, document.getElementById('reagent-search').value);
+    }
+
+    function filterReagentCards(q) {
+      populateShelfCards('all', q);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    const clock = new THREE.Clock();
+
+    function animateLoop() {
+      requestAnimationFrame(animateLoop);
+
+      const delta = clock.getDelta();
+      const time = clock.getElapsedTime();
+
+      TWEEN.update();
+      if (controls) controls.update();
+
+      // Gorelka olovi va isitish
+      const flaskVessel = vessels.flask;
+      if (isBurnerOn) {
+        flaskVessel.temp = Math.min(135, flaskVessel.temp + delta * 20);
+        burnerFlameGroup.scale.y = 0.9 + Math.sin(time * 26) * 0.16;
+        burnerFlameGroup.scale.x = 0.9 + Math.cos(time * 20) * 0.1;
+
+        if (flaskVessel.temp >= 128 && flaskVessel.volume > 0 && !flaskVessel.has('H2O')) {
+          executeChemicalPour(flaskVessel, { id: 'Thermal', name: 'Haddan tashqari issiqlik', state: 'solid', color: 0xef4444, ph: 7.0 }, 0);
+        }
+      } else {
+        if (flaskVessel.temp > 22.0) {
+          flaskVessel.temp = Math.max(22.0, flaskVessel.temp - delta * 3.5);
+        }
+      }
+
+      // Suyuqlik ranglarini yangilash
+      Object.keys(vessels).forEach(k => {
+        const v = vessels[k];
+        if (v.liquidMat) {
+          v.liquidMat.color.lerp(v.color, delta * 3.0);
+        }
+      });
+
+      // Pufakchalar va bug'
+      const isBoiling = (flaskVessel.temp >= 98 && flaskVessel.volume > 0) || flaskVessel.effervescent;
+      if (bubbleParticles) {
+        bubbleParticles.children.forEach(b => {
+          if (isBoiling && flaskVessel.volume > 0) {
+            b.visible = true;
+            b.position.y += b.userData.vy * (flaskVessel.temp / 45);
+            b.position.x += Math.sin(time * 6 + b.userData.seed) * 0.003;
+            if (b.position.y > 0.9 + (flaskVessel.volume / flaskVessel.maxVol) * 1.5) {
+              b.position.y = 0.95;
+            }
+          } else {
+            b.visible = false;
+          }
+        });
+      }
+
+      if (steamParticles) {
+        steamParticles.children.forEach(sm => {
+          if (isBoiling) {
+            sm.visible = true;
+            sm.userData.life += 1;
+            sm.position.y += sm.userData.vy;
+            sm.position.x += sm.userData.vx;
+            sm.position.z += sm.userData.vz;
+            if (sm.userData.life > sm.userData.maxLife) {
+              sm.position.set(0, 3.6, 0);
+              sm.userData.life = 0;
+            }
+          } else {
+            sm.visible = false;
+          }
+        });
+      }
+
+      // Portlash shisha parchalari
+      if (explosionParticles) {
+        explosionParticles.children.forEach(shard => {
+          if (shard.visible) {
+            shard.position.x += shard.userData.vx;
+            shard.position.y += shard.userData.vy;
+            shard.position.z += shard.userData.vz;
+            shard.userData.vy -= 0.008;
+            shard.rotation.x += shard.userData.rotX;
+            shard.rotation.y += shard.userData.rotY;
+
+            if (shard.position.y < 0.0) {
+              shard.position.y = 0.0;
+              shard.userData.vy = 0;
+              shard.userData.vx *= 0.8;
+              shard.userData.vz *= 0.8;
+            }
+          }
+        });
+      }
+
+      // Suyuqlik oqimi
+      if (pourStreamParticles) {
+        const curVessel = vessels[activeVesselKey];
+        pourStreamParticles.children.forEach(drop => {
+          if (drop.userData.active) {
+            drop.position.y -= drop.userData.vy;
+            if (drop.position.y < curVessel.pos.y + 1.0) {
+              drop.position.y = curVessel.pos.y + 2.4;
+            }
+          }
+        });
+      }
+
+      updateFloatingHudPosition();
+
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    window.addEventListener('load', () => {
+      try {
+        init3DEnvironment();
+        populateShelfCards('all');
+        updateTelemetryAndHUD();
+        animateLoop();
+      } catch (err) {
+        console.error("Laboratoriyani ishga tushirishda xatolik:", err);
+      }
+    });
+  </script>
+</body>
+</html>
